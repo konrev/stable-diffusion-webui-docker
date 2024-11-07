@@ -1,18 +1,18 @@
+version: '3.8'
+
 x-base_service: &base_service
-    ports:
-      - "${WEBUI_PORT:-7860}:7860"
-    volumes:
-      - &v1 ./data:/data
-      - &v2 ./output:/output
-    stop_signal: SIGKILL
-    tty: true
-    deploy:
-      resources:
-        reservations:
-          devices:
-              - driver: nvidia
-                device_ids: ['0']
-                capabilities: [compute, utility]
+  volumes:
+    - ./data:/data
+    - ./output:/output
+  stop_signal: SIGKILL
+  tty: true
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            device_ids: ['0']
+            capabilities: [compute, utility]
 
 name: webui-docker
 
@@ -21,35 +21,43 @@ services:
     build: ./services/download/
     profiles: ["download"]
     volumes:
-      - *v1
+      - ./data:/data
 
-  auto: &automatic
+  auto:
     <<: *base_service
-    profiles: ["auto"]
+    profiles: ["auto", "combined"]
     build: ./services/AUTOMATIC1111
     image: sd-auto:78
     environment:
       - CLI_ARGS=--allow-code --medvram --xformers --enable-insecure-extension-access --api
+    ports:
+      - "7860:7860"
 
   auto-cpu:
-    <<: *automatic
+    <<: *base_service
     profiles: ["auto-cpu"]
-    deploy: {}
+    build: ./services/AUTOMATIC1111
+    image: sd-auto:78
     environment:
       - CLI_ARGS=--no-half --precision full --allow-code --enable-insecure-extension-access --api
+    deploy: {}
 
-  comfy: &comfy
+  comfy:
     <<: *base_service
-    profiles: ["comfy"]
+    profiles: ["comfy", "combined"]
     build: ./services/comfy/
     image: sd-comfy:7
     environment:
-      - CLI_ARGS=
-
+      - CLI_ARGS=--disable-cuda-malloc
+    ports:
+      - "7861:7860"
 
   comfy-cpu:
-    <<: *comfy
+    <<: *base_service
     profiles: ["comfy-cpu"]
-    deploy: {}
+    build: ./services/comfy/
+    image: sd-comfy:7
     environment:
       - CLI_ARGS=--cpu
+    deploy: {}
+    
